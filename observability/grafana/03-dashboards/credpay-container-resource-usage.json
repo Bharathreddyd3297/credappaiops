@@ -1,0 +1,124 @@
+{
+  "__inputs": [
+    { "name": "DS_PROMETHEUS", "label": "Prometheus", "description": "", "type": "datasource", "pluginId": "prometheus", "pluginName": "Prometheus" }
+  ],
+  "__requires": [
+    { "type": "grafana", "id": "grafana", "name": "Grafana", "version": "11.3.1" },
+    { "type": "datasource", "id": "prometheus", "name": "Prometheus", "version": "1.0.0" },
+    { "type": "panel", "id": "timeseries", "name": "Time series", "version": "" },
+    { "type": "panel", "id": "gauge", "name": "Gauge", "version": "" },
+    { "type": "panel", "id": "bargauge", "name": "Bar gauge", "version": "" },
+    { "type": "panel", "id": "table", "name": "Table", "version": "" }
+  ],
+  "annotations": {
+    "list": [
+      { "builtIn": 1, "datasource": { "type": "grafana", "uid": "-- Grafana --" }, "enable": true, "hide": true, "iconColor": "rgba(0, 211, 255, 1)", "name": "Annotations & Alerts", "type": "dashboard" }
+    ]
+  },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 0,
+  "id": null,
+  "links": [],
+  "liveNow": false,
+  "panels": [
+    {
+      "id": 1,
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
+      "type": "timeseries",
+      "title": "Container CPU Usage (cores) - credpay",
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "targets": [
+        { "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" }, "expr": "sum(rate(container_cpu_usage_seconds_total{namespace=\"credpay\", container!=\"\", image!=\"\"}[5m])) by (pod, container)", "legendFormat": "{{pod}} / {{container}}", "refId": "A", "instant": false, "range": true }
+      ],
+      "fieldConfig": { "defaults": { "unit": "short" }, "overrides": [] },
+      "options": {}
+    },
+    {
+      "id": 2,
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
+      "type": "timeseries",
+      "title": "Container Memory Working Set - credpay",
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "targets": [
+        { "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" }, "expr": "sum(container_memory_working_set_bytes{namespace=\"credpay\", container!=\"\", image!=\"\"}) by (pod, container)", "legendFormat": "{{pod}} / {{container}}", "refId": "A", "instant": false, "range": true }
+      ],
+      "fieldConfig": { "defaults": { "unit": "decbytes" }, "overrides": [] },
+      "options": {}
+    },
+    {
+      "id": 3,
+      "gridPos": { "h": 7, "w": 12, "x": 0, "y": 8 },
+      "type": "gauge",
+      "title": "Memory Usage vs Limit % (per pod, credpay)",
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "targets": [
+        { "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" }, "expr": "sum(container_memory_working_set_bytes{namespace=\"credpay\", container!=\"\", image!=\"\"}) by (pod) / sum(kube_pod_container_resource_limits{namespace=\"credpay\", resource=\"memory\"}) by (pod) * 100", "legendFormat": "{{pod}}", "refId": "A", "instant": true, "range": false }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent", "min": 0, "max": 100,
+          "thresholds": { "mode": "absolute", "steps": [ { "color": "green", "value": null }, { "color": "yellow", "value": 75 }, { "color": "red", "value": 90 } ] }
+        },
+        "overrides": []
+      },
+      "options": { "showThresholdLabels": false, "showThresholdMarkers": true, "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false } }
+    },
+    {
+      "id": 4,
+      "gridPos": { "h": 7, "w": 12, "x": 12, "y": 8 },
+      "type": "bargauge",
+      "title": "CPU Usage vs Request % (per pod, credpay)",
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "targets": [
+        { "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" }, "expr": "sum(rate(container_cpu_usage_seconds_total{namespace=\"credpay\", container!=\"\", image!=\"\"}[5m])) by (pod) / sum(kube_pod_container_resource_requests{namespace=\"credpay\", resource=\"cpu\"}) by (pod) * 100", "legendFormat": "{{pod}}", "refId": "A", "instant": true, "range": false }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "thresholds": { "mode": "absolute", "steps": [ { "color": "green", "value": null }, { "color": "yellow", "value": 100 }, { "color": "red", "value": 200 } ] }
+        },
+        "overrides": []
+      },
+      "options": { "displayMode": "gradient", "orientation": "horizontal", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false } }
+    },
+    {
+      "id": 5,
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 15 },
+      "type": "timeseries",
+      "title": "Container Network Receive Rate - credpay",
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "targets": [
+        { "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" }, "expr": "sum(rate(container_network_receive_bytes_total{namespace=\"credpay\"}[5m])) by (pod)", "legendFormat": "{{pod}}", "refId": "A", "instant": false, "range": true }
+      ],
+      "fieldConfig": { "defaults": { "unit": "Bps" }, "overrides": [] },
+      "options": {}
+    },
+    {
+      "id": 6,
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 23 },
+      "type": "table",
+      "title": "Top 10 Containers by Memory (cluster-wide)",
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "targets": [
+        { "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" }, "expr": "topk(10, container_memory_working_set_bytes{container!=\"\", image!=\"\"})", "format": "table", "refId": "A", "instant": true, "range": false }
+      ],
+      "fieldConfig": { "defaults": {}, "overrides": [] },
+      "options": { "showHeader": true },
+      "transformations": [
+        { "id": "organize", "options": { "excludeByName": { "Time": true, "__name__": true, "id": true, "image": true } } }
+      ]
+    }
+  ],
+  "refresh": "30s",
+  "schemaVersion": 39,
+  "tags": ["credpay", "observability", "cadvisor", "container"],
+  "templating": { "list": [] },
+  "time": { "from": "now-1h", "to": "now" },
+  "timepicker": {},
+  "timezone": "",
+  "title": "CredPay - Container Resource Usage (cAdvisor)",
+  "uid": "credpay-container-usage",
+  "version": 1,
+  "weekStart": ""
+}

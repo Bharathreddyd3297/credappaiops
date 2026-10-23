@@ -1,0 +1,190 @@
+# =====================================================================
+# Build one service: test -> analyse -> build image -> scan -> push
+#
+# The job only runs when DetectChanges marked the service as changed.
+# Each gate stops the job, so a failing service is never pushed:
+#   1. unit tests (java / python)
+#   2. SonarQube quality gate              (when sonar: true)
+#   3. docker build
+#   4. Trivy image scan: fixable HIGH/CRITICAL vulnerabilities fail the
+#      build; accepted risks live in <service>/.trivyignore (with expiry)
+#   5. push to ACR with the immutable tag  (when publish: true)
+# =====================================================================
+parameters:
+  - name: service          # folder name, e.g. user-service
+    type: string
+  - name: language         # java | python | node
+    type: string
+  - name: publish          # push the image to ACR
+    type: boolean
+    default: false
+  - name: sonar            # run SonarQube analysis + quality gate
+    type: boolean
+    default: false
+  - name: sonarSources     # source folder, relative to the service folder
+    type: string
+    default: src
+  - name: sonarProperties  # extra sonar.* lines for this language
+    type: string
+    default: ''
+
+jobs:
+  - job: ${{ replace(parameters.service, '-', '_') }}
+    displayName: ${{ parameters.service }}
+    timeoutInMinutes: 45
+    condition: eq(stageDependencies.Prepare.DetectChanges.outputs['detect.${{ replace(parameters.service, '-', '_') }}'], 'true')
+    variables:
+      imageRepository: $(imageRepositoryPrefix)/${{ parameters.service }}
+      DOCKER_BUILDKIT: 1
+    steps:
+      - checkout: self
+
+      # ---- 1. Unit tests + coverage ----------------------------------
+      - ${{ if eq(parameters.language, 'java') }}:
+          - bash: |
+              set -euo pipefail
+              export JAVA_HOME="$JAVA_HOME_21_X64"
+              mvn -B -ntp test
+            workingDirectory: ${{ parameters.service }}
+            displayName: Unit tests + coverage (Maven, JaCoCo)
+
+          - task: PublishTestResults@2
+            displayName: Publish test results
+            condition: succeededOrFailed()
+            inputs:
+              testResultsFormat: JUnit
+              testResultsFiles: ${{ parameters.service }}/target/surefire-reports/TEST-*.xml
+              testRunTitle: ${{ parameters.service }} unit tests
+
+          - task: PublishCodeCoverageResults@2
+            displayName: Publish coverage
+            inputs:
+              summaryFileLocation: ${{ parameters.service }}/target/site/jacoco/jacoco.xml
+
+      - ${{ if eq(parameters.language, 'python') }}:
+          - task: UsePythonVersion@0
+            displayName: Use Python 3.12
+            inputs:
+              versionSpec: '3.12'
+
+          - bash: |
+              set -euo pipefail
+              python -m pip install --quiet -r requirements-dev.txt
+              python -m pytest --junitxml=test-results.xml --cov=app --cov-report=xml
+            workingDirectory: ${{ parameters.service }}
+            displayName: Unit tests + coverage (pytest)
+
+          - task: PublishTestResults@2
+            displayName: Publish test results
+            condition: succeededOrFailed()
+            inputs:
+              testResultsFormat: JUnit
+              testResultsFiles: ${{ parameters.service }}/test-results.xml
+              testRunTitle: ${{ parameters.service }} unit tests
+
+          - task: PublishCodeCoverageResults@2
+            displayName: Publish coverage
+            inputs:
+              summaryFileLocation: ${{ parameters.service }}/coverage.xml
+
+      # ---- 2. SonarQube analysis + quality gate -----------------------
+      - ${{ if parameters.sonar }}:
+          - task: SonarQubePrepare@7
+            displayName: Prepare SonarQube analysis
+            inputs:
+              SonarQube: ${{ variables.sonarServiceConnection }}
+              scannerMode: cli
+              configMode: manual
+              cliProjectKey: credpay-${{ parameters.service }}
+              cliProjectName: CREDPAY ${{ parameters.service }}
+              cliProjectVersion: $(imageTag)
+              cliSources: ${{ parameters.sonarSources }}
+              extraProperties: |
+                sonar.projectBaseDir=$(Build.SourcesDirectory)/${{ parameters.service }}
+                sonar.qualitygate.wait=true
+                sonar.qualitygate.timeout=300
+                ${{ parameters.sonarProperties }}
+
+          # Fails the job when the quality gate is red (sonar.qualitygate.wait)
+          - task: SonarQubeAnalyze@7
+            displayName: Run SonarQube analysis (waits for the quality gate)
+
+          - task: SonarQubePublish@7
+            displayName: Publish quality gate result
+            condition: succeededOrFailed()
+            inputs:
+              pollingTimeoutSec: '300'
+
+      # ---- 3. Build the image ----------------------------------------
+      - task: Docker@2
+        displayName: Build image
+        inputs:
+          command: build
+          containerRegistry: ${{ variables.acrServiceConnection }}
+          repository: $(imageRepository)
+          dockerfile: ${{ parameters.service }}/Dockerfile
+          buildContext: ${{ parameters.service }}
+          tags: $(imageTag)
+          arguments: >-
+            --label org.opencontainers.image.revision=$(Build.SourceVersion)
+            --label org.opencontainers.image.version=$(imageTag)
+
+      # ---- 4. Trivy image scan (gate) ---------------------------------
+      - bash: |
+          set -euo pipefail
+          image="$(acrLoginServer)/$(imageRepository):$(imageTag)"
+          ignore=""
+          if [ -f "${{ parameters.service }}/.trivyignore" ]; then
+            ignore="--ignorefile /src/.trivyignore"
+            echo "Using accepted risks from ${{ parameters.service }}/.trivyignore"
+          fi
+          mkdir -p "$(Agent.TempDirectory)/trivy"
+          scan() {
+            docker run --rm \
+              -v /var/run/docker.sock:/var/run/docker.sock \
+              -v trivy-cache:/root/.cache \
+              -v "$(Build.SourcesDirectory)/${{ parameters.service }}:/src:ro" \
+              -v "$(Agent.TempDirectory)/trivy:/out" \
+              $(trivyImage) image --scanners vuln --severity HIGH,CRITICAL --ignore-unfixed $ignore "$@" "$image"
+          }
+          # Report for the Tests tab, then the gate (non-zero exit = fail)
+          scan --format template --template "@/contrib/junit.tpl" --output /out/trivy-image-junit.xml
+          scan --format table --exit-code 1
+        displayName: Trivy image scan (fails on fixable HIGH/CRITICAL)
+
+      - task: PublishTestResults@2
+        displayName: Publish Trivy image results
+        condition: succeededOrFailed()
+        inputs:
+          testResultsFormat: JUnit
+          testResultsFiles: $(Agent.TempDirectory)/trivy/trivy-image-junit.xml
+          testRunTitle: Trivy image scan - ${{ parameters.service }}
+          failTaskOnFailedTests: false
+
+      # ---- 5. Push to ACR --------------------------------------------
+      - ${{ if parameters.publish }}:
+          - task: Docker@2
+            displayName: Push image to ACR
+            condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/main'))
+            inputs:
+              command: push
+              containerRegistry: ${{ variables.acrServiceConnection }}
+              repository: $(imageRepository)
+              tags: $(imageTag)
+
+          # Record what was pushed: the CD pipeline deploys exactly these images
+          - bash: |
+              set -euo pipefail
+              mkdir -p "$(Build.ArtifactStagingDirectory)/image"
+              echo "$(acrLoginServer)/$(imageRepository):$(imageTag)" > "$(Build.ArtifactStagingDirectory)/image/${{ parameters.service }}.txt"
+              echo "##vso[build.addbuildtag]${{ parameters.service }}"
+              echo "Pushed $(acrLoginServer)/$(imageRepository):$(imageTag)"
+            displayName: Record pushed image
+            condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/main'))
+
+          - task: PublishPipelineArtifact@1
+            displayName: Publish image reference
+            condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/main'))
+            inputs:
+              targetPath: $(Build.ArtifactStagingDirectory)/image
+              artifact: image-${{ parameters.service }}

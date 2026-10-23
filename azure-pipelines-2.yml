@@ -1,0 +1,72 @@
+# Starter pipeline
+# Start with a minimal pipeline that you can customize to build and deploy your code.
+# Add steps that build, run tests, deploy, and more:
+# https://aka.ms/yaml
+
+trigger:
+- main
+
+pool:
+  vmImage: ubuntu-latest
+
+stages:
+  - stage: BuildandScan
+    displayName: Build Docker Images and scan with Trivy
+
+    jobs:
+      - job: BuildandScan
+
+        steps:
+          - checkout: self
+          - script: |
+              docker build -t frontend:$(Build.BuildID) ./customer-portal
+              docker build -t user-service:$(Build.BuildID) ./user-service
+              docker build -t payment-service:$(Build.BuildID) ./payment-service
+
+              docker images
+            displayName: Build Docker Images
+          
+          - script: |
+              set -e
+
+              sudo apt-get update
+
+              sudo apt-get install -y \
+                wget \
+                gnupg \
+                lsb-release \
+                apt-transport-https
+
+              wget -qO - https://aquasecurity.github.io/trivy-repo/deb/public.key | \
+              gpg --dearmor | \
+              sudo tee /usr/share/keyrings/trivy.gpg > /dev/null
+
+              echo "deb [signed-by=/usr/share/keyrings/trivy.gpg] https://aquasecurity.github.io/trivy-repo/deb $(lsb_release -sc) main" | \
+              sudo tee /etc/apt/sources.list.d/trivy.list
+
+              sudo apt-get update
+
+              sudo apt-get install -y trivy
+
+              trivy --version
+              mkdir -p reports
+              wget https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/html.tpl -O reports/html.tpl
+            displayName: Install Trivy
+
+          - script: |
+              trivy image frontend:$(Build.BuildID) --severity HIGH,CRITICAL --format template --template "@reports/html.tpl" -o reports/frontend-report.html
+              trivy image frontend:$(Build.BuildID) --severity HIGH,CRITICAL --format json -o reports/frontend-report.json
+              trivy image user-service:$(Build.BuildID) --severity HIGH,CRITICAL --format template --template "@reports/html.tpl" -o reports/user-service.html
+              trivy image user-service:$(Build.BuildID) --severity HIGH,CRITICAL --format json -o reports/user-service.json
+              trivy image payment-service:$(Build.BuildID) --severity HIGH,CRITICAL --format template --template "@reports/html.tpl" -o reports/payment-service.html
+              trivy image payment-service:$(Build.BuildID) --severity HIGH,CRITICAL --format json -o reports/payment-service.json
+            displayName: Scan the images
+          - task: PublishBuildArtifacts@1
+            displayName: Publish trivy report
+            inputs:
+              PathtoPublish: reports
+              ArtifactName: TrivyReports
+              publishLocation: Container
+          
+          
+          

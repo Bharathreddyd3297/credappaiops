@@ -1,0 +1,19 @@
+# =====================================================================
+# User Service - ClusterIP (reached via Ingress at /api/users, /api/cards)
+# =====================================================================
+apiVersion: v1
+kind: Service
+metadata:
+  name: user-service
+  namespace: credpay
+  labels:
+    app.kubernetes.io/name: user-service
+    app.kubernetes.io/part-of: credpay
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: user-service
+  ports:
+    - name: http
+      port: 8080
+      targetPort: http

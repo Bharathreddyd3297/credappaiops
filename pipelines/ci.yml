@@ -1,0 +1,94 @@
+# =====================================================================
+# CREDPAY - CI pipeline (main branch)
+# =====================================================================
+# Runs on every merge to main:
+#
+#   Prepare  gitleaks (blocking) · Trivy filesystem (report) · change detection
+#   Build    per changed service, in parallel jobs:
+#            tests -> SonarQube quality gate -> docker build
+#            -> Trivy image gate -> push to ACR as 1.0.<BuildId>
+#
+# Only images that passed every gate reach ACR. The CD pipeline (next
+# phase) promotes those exact images dev -> qa -> prod.
+#
+# Azure DevOps setup: Pipelines -> New pipeline -> Azure Repos Git ->
+# credwithaiops -> Existing YAML file -> /pipelines/ci.yml
+# =====================================================================
+
+trigger:
+  branches:
+    include:
+      - main
+  paths:
+    exclude:
+      - docs
+      - README.md
+
+pr: none   # pull requests use pipelines/pr.yml (branch policy build validation)
+
+parameters:
+  - name: buildAll
+    displayName: Build all services (ignore change detection)
+    type: boolean
+    default: false
+
+variables:
+  - template: templates/variables.yml
+
+pool:
+  vmImage: ubuntu-latest
+
+stages:
+  - stage: Prepare
+    displayName: Security scans and change detection
+    jobs:
+      - template: templates/security-scans.yml
+      - template: templates/detect-changes.yml
+        parameters:
+          buildAll: ${{ parameters.buildAll }}
+
+  - stage: Build
+    displayName: Test, analyse, build, scan and push
+    dependsOn: Prepare
+    jobs:
+      - template: templates/build-service.yml
+        parameters:
+          service: user-service
+          language: java
+          publish: true
+          sonar: true
+          sonarSources: src/main/java
+          sonarProperties: |
+            sonar.tests=src/test/java
+            sonar.java.source=21
+            sonar.java.binaries=target/classes
+            sonar.java.test.binaries=target/test-classes
+            sonar.coverage.jacoco.xmlReportPaths=target/site/jacoco/jacoco.xml
+
+      - template: templates/build-service.yml
+        parameters:
+          service: payment-service
+          language: python
+          publish: true
+          sonar: true
+          sonarSources: app
+          sonarProperties: |
+            sonar.tests=tests
+            sonar.python.version=3.12
+            sonar.python.coverage.reportPaths=coverage.xml
+
+      - template: templates/build-service.yml
+        parameters:
+          service: customer-portal
+          language: node
+          publish: true
+          sonar: true
+          sonarSources: src
+
+      - template: templates/build-service.yml
+        parameters:
+          service: admin-portal
+          language: node
+          publish: true
+          sonar: true
+          sonarSources: src

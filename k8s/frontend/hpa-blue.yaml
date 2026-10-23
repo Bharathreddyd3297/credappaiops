@@ -1,0 +1,29 @@
+# =====================================================================
+# Frontend HorizontalPodAutoscaler - BLUE slot (requires metrics-server)
+# =====================================================================
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: frontend-blue
+  namespace: credpay
+  labels:
+    app.kubernetes.io/name: frontend
+    app.kubernetes.io/part-of: credpay
+    version: blue
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: frontend-blue
+  minReplicas: 2
+  maxReplicas: 6
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 70
+  behavior:
+    scaleDown:
+      stabilizationWindowSeconds: 300

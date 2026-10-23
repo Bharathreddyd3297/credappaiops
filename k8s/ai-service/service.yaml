@@ -1,0 +1,19 @@
+# =====================================================================
+# CredAI Service - ClusterIP Service
+# =====================================================================
+apiVersion: v1
+kind: Service
+metadata:
+  name: credai-service
+  namespace: credpay
+  labels:
+    app.kubernetes.io/name: credai-service
+    app.kubernetes.io/part-of: credpay
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: credai-service
+  ports:
+    - name: http
+      port: 8010
+      targetPort: http

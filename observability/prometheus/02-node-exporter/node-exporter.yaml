@@ -1,0 +1,90 @@
+# =====================================================================
+# Node Exporter - real node-level CPU/memory/disk/network metrics
+# =====================================================================
+# DaemonSet (one Pod per node) - the kubelet's own /metrics (already
+# scraped by the Prometheus deployment) exposes kubelet-internal stats
+# only, not general OS-level metrics. hostNetwork/hostPID + read-only
+# host mounts are what let Node Exporter read the host's real /proc,
+# /sys. No RBAC needed - it never calls the Kubernetes API.
+# =====================================================================
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: node-exporter
+  namespace: monitoring
+  labels:
+    app.kubernetes.io/name: node-exporter
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: node-exporter
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: node-exporter
+    spec:
+      hostNetwork: true
+      hostPID: true
+      tolerations:
+        - operator: Exists
+          effect: NoSchedule
+        - operator: Exists
+          effect: NoExecute
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65534
+        runAsGroup: 65534
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: node-exporter
+          image: prom/node-exporter:v1.8.2
+          args:
+            - --path.procfs=/host/proc
+            - --path.sysfs=/host/sys
+            - --path.rootfs=/host/root
+            - --collector.filesystem.mount-points-exclude=^/(dev|proc|sys|var/lib/docker/.+|var/lib/kubelet/.+)($|/)
+          ports:
+            - name: metrics
+              containerPort: 9100
+          volumeMounts:
+            - { name: proc, mountPath: /host/proc, readOnly: true }
+            - { name: sys, mountPath: /host/sys, readOnly: true }
+            - { name: root, mountPath: /host/root, readOnly: true }
+          readinessProbe:
+            httpGet: { path: /, port: metrics }
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet: { path: /, port: metrics }
+            initialDelaySeconds: 10
+            periodSeconds: 15
+          resources:
+            # requests trimmed (limits unchanged) - see
+            # observability/prometheus/README.md "Resource footprint" note.
+            requests: { cpu: "50m", memory: "32Mi" }
+            limits: { cpu: "200m", memory: "128Mi" }
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: { drop: ["ALL"] }
+      volumes:
+        - { name: proc, hostPath: { path: /proc } }
+        - { name: sys, hostPath: { path: /sys } }
+        - { name: root, hostPath: { path: / } }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: node-exporter
+  namespace: monitoring
+  labels:
+    app.kubernetes.io/name: node-exporter
+spec:
+  clusterIP: None # headless - Prometheus discovers each node's endpoint individually
+  selector:
+    app.kubernetes.io/name: node-exporter
+  ports:
+    - name: metrics
+      port: 9100
+      targetPort: metrics

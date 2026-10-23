@@ -1,0 +1,140 @@
+# =====================================================================
+# CredPay - local Docker environment
+# =====================================================================
+# Default: only the infrastructure (PostgreSQL + Keycloak); the apps run
+# directly on the laptop (scripts/start-all.ps1).
+#
+#   Start:   docker compose -f infra/docker-compose.yml up -d
+#   Status:  docker compose -f infra/docker-compose.yml ps
+#   Stop:    docker compose -f infra/docker-compose.yml down
+#   Reset:   docker compose -f infra/docker-compose.yml down -v   (deletes all data)
+#
+# Profile "apps": ALSO builds and runs the four application images - the
+# same images the pipeline pushes to ACR. Stop the laptop apps first
+# (they use the same ports):
+#
+#   docker compose -f infra/docker-compose.yml --profile apps up -d --build
+#   docker compose -f infra/docker-compose.yml --profile apps down
+#
+# LOCAL ONLY: the postgres/postgres and admin/admin credentials below are
+# for a developer laptop. Real environments take them from Key Vault.
+# =====================================================================
+
+name: credpay
+
+services:
+  postgres:
+    image: postgres:17
+    container_name: credpay-postgres
+    environment:
+      POSTGRES_DB: credpay
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - credpay-pgdata:/var/lib/postgresql/data
+      # Runs once, only when the data volume is empty (first start or after
+      # `down -v`). The credpay tables are created by user-service (Flyway).
+      - ./postgres/00-create-keycloak-db.sql:/docker-entrypoint-initdb.d/00-create-keycloak-db.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d credpay"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  # Identity provider for both portals: login, registration, roles.
+  # Admin console: http://localhost:8081/admin  (admin / admin)
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.3.2
+    container_name: credpay-keycloak
+    # start-dev: HTTP, no theme caching. --import-realm loads
+    # keycloak/realm/credpay-realm.json on first start only (an existing
+    # realm is never overwritten).
+    command: ["start-dev", "--import-realm"]
+    environment:
+      KC_DB: postgres
+      KC_DB_URL: jdbc:postgresql://postgres:5432/keycloak
+      KC_DB_USERNAME: postgres
+      KC_DB_PASSWORD: postgres
+      # Public URL - becomes the token issuer (iss) the services validate
+      KC_HOSTNAME: http://localhost:8081
+      KC_BOOTSTRAP_ADMIN_USERNAME: admin
+      KC_BOOTSTRAP_ADMIN_PASSWORD: admin
+    ports:
+      - "8081:8080"
+    volumes:
+      - ./keycloak/realm:/opt/keycloak/data/import:ro
+      - ./keycloak/themes/credpay:/opt/keycloak/themes/credpay:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  # -------------------------------------------------------------------
+  # Application images (profile "apps")
+  # Browsers reach everything on localhost; the containers reach each
+  # other by service name (postgres, keycloak). Tokens carry the public
+  # issuer http://localhost:8081/..., so the services check that issuer
+  # but download Keycloak's signing keys from http://keycloak:8080.
+  # -------------------------------------------------------------------
+  user-service:
+    profiles: ["apps"]
+    build: ../user-service
+    image: credpay/user-service:local
+    container_name: credpay-user-service
+    environment:
+      DB_HOST: postgres
+      OIDC_ISSUER_URI: http://localhost:8081/realms/credpay
+      SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_JWKSETURI: http://keycloak:8080/realms/credpay/protocol/openid-connect/certs
+    ports:
+      - "8080:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      keycloak:
+        condition: service_started
+
+  payment-service:
+    profiles: ["apps"]
+    build: ../payment-service
+    image: credpay/payment-service:local
+    container_name: credpay-payment-service
+    environment:
+      DB_HOST: postgres
+      OIDC_ISSUER_URI: http://localhost:8081/realms/credpay
+      OIDC_JWKS_URI: http://keycloak:8080/realms/credpay/protocol/openid-connect/certs
+    ports:
+      - "8000:8000"
+    depends_on:
+      # user-service creates the tables (Flyway) - wait until it is healthy
+      user-service:
+        condition: service_healthy
+
+  customer-portal:
+    profiles: ["apps"]
+    build: ../customer-portal
+    image: credpay/customer-portal:local
+    container_name: credpay-customer-portal
+    environment:
+      CREDPAY_USER_API_URL: http://localhost:8080
+      CREDPAY_PAYMENT_API_URL: http://localhost:8000
+      CREDPAY_OIDC_AUTHORITY: http://localhost:8081/realms/credpay
+      CREDPAY_OIDC_CLIENT_ID: customer-portal
+    ports:
+      - "5173:8080"
+
+  admin-portal:
+    profiles: ["apps"]
+    build: ../admin-portal
+    image: credpay/admin-portal:local
+    container_name: credpay-admin-portal
+    environment:
+      CREDPAY_USER_API_URL: http://localhost:8080
+      CREDPAY_PAYMENT_API_URL: http://localhost:8000
+      CREDPAY_OIDC_AUTHORITY: http://localhost:8081/realms/credpay
+      CREDPAY_OIDC_CLIENT_ID: admin-portal
+    ports:
+      - "5174:8080"
+
+volumes:
+  credpay-pgdata:

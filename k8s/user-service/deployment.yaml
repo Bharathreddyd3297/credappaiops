@@ -1,0 +1,107 @@
+# =====================================================================
+# User Service (Spring Boot / Java 21) - REST API on port 8080
+# =====================================================================
+# Probes remain TCP-based (unchanged) even though spring-boot-starter-actuator
+# was added for /actuator/prometheus (observability/application-metrics/) -
+# switching probes to httpGet /actuator/health/* is a separate, optional
+# change, out of scope here.
+# =====================================================================
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: user-service
+  namespace: credpay
+  labels:
+    app.kubernetes.io/name: user-service
+    app.kubernetes.io/part-of: credpay
+spec:
+  replicas: 2
+  revisionHistoryLimit: 5
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: user-service
+  strategy:
+    type: RollingUpdate
+    # maxSurge: 0 / maxUnavailable: 1 - terminates the old Pod before
+    # starting the new one, so a rollout never needs headroom for a 3rd
+    # Pod. Changed from maxSurge:1/maxUnavailable:0 after this cluster's
+    # small, max-size node pool couldn't schedule the surge Pod (see
+    # observability/prometheus/README.md "Resource footprint" note).
+    # Tradeoff: briefly runs on 1 replica (not 2) during every rollout.
+    rollingUpdate:
+      maxSurge: 0
+      maxUnavailable: 1
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: user-service
+        app.kubernetes.io/part-of: credpay
+      annotations:
+        # Picked up by Prometheus's existing "kubernetes-pods" scrape job
+        # (observability/prometheus/01-prometheus-server/prometheus.yaml) -
+        # that job has been wired up since Phase 1 but had 0 targets until now.
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8080"
+        prometheus.io/path: "/actuator/prometheus"
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      volumes:
+        # Tomcat/JVM need a writable temp dir when the root FS is read-only.
+        - name: tmp
+          emptyDir: {}
+      containers:
+        - name: user-service
+          # Images live in the existing ACR (credproj.azurecr.io). AKS is
+          # attached to it via: az aks update --attach-acr credproj
+          image: credpayacrs1.azurecr.io/credpay/user-service:latest
+          # "Always" because the tag is the mutable `:latest` - IfNotPresent
+          # would let a node keep serving a stale cached image after a fresh
+          # push + `kubectl rollout restart`.
+          imagePullPolicy: Always
+          ports:
+            - name: http
+              containerPort: 8080
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+          envFrom:
+            - configMapRef:
+                name: credpay-config
+          env:
+            - name: SPRING_DATASOURCE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: credpay-db
+                  key: SPRING_DATASOURCE_PASSWORD
+          startupProbe:
+            tcpSocket:
+              port: http
+            # Spring Boot can take a while to start; allow up to 60s.
+            failureThreshold: 20
+            periodSeconds: 3
+          readinessProbe:
+            tcpSocket:
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            tcpSocket:
+              port: http
+            initialDelaySeconds: 30
+            periodSeconds: 20
+          resources:
+            requests:
+              cpu: "250m"
+              memory: "512Mi"
+            limits:
+              cpu: "500m"
+              memory: "768Mi"
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]

@@ -1,0 +1,197 @@
+{
+  "__inputs": [
+    {
+      "name": "DS_PROMETHEUS",
+      "label": "Prometheus",
+      "description": "",
+      "type": "datasource",
+      "pluginId": "prometheus",
+      "pluginName": "Prometheus"
+    }
+  ],
+  "__requires": [
+    { "type": "grafana", "id": "grafana", "name": "Grafana", "version": "11.3.1" },
+    { "type": "datasource", "id": "prometheus", "name": "Prometheus", "version": "1.0.0" },
+    { "type": "panel", "id": "table", "name": "Table", "version": "" },
+    { "type": "panel", "id": "stat", "name": "Stat", "version": "" }
+  ],
+  "annotations": {
+    "list": [
+      {
+        "builtIn": 1,
+        "datasource": { "type": "grafana", "uid": "-- Grafana --" },
+        "enable": true,
+        "hide": true,
+        "iconColor": "rgba(0, 211, 255, 1)",
+        "name": "Annotations & Alerts",
+        "type": "dashboard"
+      }
+    ]
+  },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 0,
+  "id": null,
+  "links": [],
+  "liveNow": false,
+  "panels": [
+    {
+      "id": 1,
+      "gridPos": { "h": 6, "w": 24, "x": 0, "y": 0 },
+      "type": "stat",
+      "title": "kube-state-metrics - Target Up",
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+          "expr": "up{job=\"kube-state-metrics\"}",
+          "legendFormat": "kube-state-metrics",
+          "refId": "A",
+          "instant": true,
+          "range": false
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [
+            { "type": "value", "options": { "0": { "text": "DOWN", "color": "red" } } },
+            { "type": "value", "options": { "1": { "text": "UP", "color": "green" } } }
+          ],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "red", "value": null },
+              { "color": "green", "value": 1 }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "textMode": "value_and_name",
+        "colorMode": "background",
+        "graphMode": "none"
+      }
+    },
+    {
+      "id": 2,
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 6 },
+      "type": "table",
+      "title": "CredPay Pod Status (current phase)",
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+          "expr": "kube_pod_status_phase{namespace=\"credpay\"} == 1",
+          "format": "table",
+          "refId": "A",
+          "instant": true,
+          "range": false
+        }
+      ],
+      "fieldConfig": { "defaults": {}, "overrides": [] },
+      "options": {
+        "showHeader": true
+      },
+      "transformations": [
+        { "id": "organize", "options": { "excludeByName": { "Time": true, "Value": true, "__name__": true, "uid": true } } }
+      ]
+    },
+    {
+      "id": 3,
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 6 },
+      "type": "table",
+      "title": "CredPay Deployment - Available Replicas",
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+          "expr": "kube_deployment_status_replicas_available{namespace=\"credpay\"}",
+          "format": "table",
+          "refId": "A",
+          "instant": true,
+          "range": false
+        }
+      ],
+      "fieldConfig": { "defaults": {}, "overrides": [] },
+      "options": {
+        "showHeader": true
+      },
+      "transformations": [
+        { "id": "organize", "options": { "excludeByName": { "Time": true, "__name__": true } } }
+      ]
+    },
+    {
+      "id": 4,
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 14 },
+      "type": "table",
+      "title": "CredPay Container Restarts",
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+          "expr": "kube_pod_container_status_restarts_total{namespace=\"credpay\"}",
+          "format": "table",
+          "refId": "A",
+          "instant": true,
+          "range": false
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "red", "value": 1 }
+            ]
+          },
+          "custom": { "cellOptions": { "type": "color-background" } }
+        },
+        "overrides": []
+      },
+      "options": {
+        "showHeader": true
+      },
+      "transformations": [
+        { "id": "organize", "options": { "excludeByName": { "Time": true, "__name__": true } } }
+      ]
+    },
+    {
+      "id": 5,
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 14 },
+      "type": "table",
+      "title": "Pods per Namespace (cluster-wide)",
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+          "expr": "count(kube_pod_info) by (namespace)",
+          "format": "table",
+          "refId": "A",
+          "instant": true,
+          "range": false
+        }
+      ],
+      "fieldConfig": { "defaults": {}, "overrides": [] },
+      "options": {
+        "showHeader": true
+      },
+      "transformations": [
+        { "id": "organize", "options": { "excludeByName": { "Time": true, "__name__": true } } }
+      ]
+    }
+  ],
+  "refresh": "30s",
+  "schemaVersion": 39,
+  "tags": ["credpay", "observability", "kubernetes"],
+  "templating": { "list": [] },
+  "time": { "from": "now-1h", "to": "now" },
+  "timepicker": {},
+  "timezone": "",
+  "title": "CredPay - Pod & Kubernetes Status",
+  "uid": "credpay-pod-status",
+  "version": 1,
+  "weekStart": ""
+}

@@ -1,0 +1,135 @@
+/* CredPay palette - same values as customer-portal/src/theme/theme.js */
+:root {
+  --credpay-gold: #C8A24B;
+  --credpay-gold-light: #F3D98B;
+  --credpay-gold-dark: #9C7B2E;
+  --credpay-bg: #0A0A0B;
+  --credpay-paper: #141417;
+  --credpay-text: #F5F6F7;
+  --credpay-text-muted: rgba(245, 246, 247, 0.62);
+  --credpay-border: rgba(255, 255, 255, 0.12);
+}
+
+.login-pf body {
+  background: radial-gradient(circle at 20% 0%, rgba(200, 162, 75, 0.18), transparent 45%), var(--credpay-bg);
+}
+
+#kc-header-wrapper {
+  color: var(--credpay-gold-light);
+  font-size: 30px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  text-transform: none;
+  padding: 48px 10px 24px;
+}
+
+#kc-header-wrapper::before {
+  content: "";
+  display: block;
+  width: 56px;
+  height: 56px;
+  margin: 0 auto 12px;
+  background: url("../img/credpay.svg") center / contain no-repeat;
+}
+
+.card-pf {
+  background: var(--credpay-paper);
+  color: var(--credpay-text);
+  border: 1px solid var(--credpay-border);
+  border-top: 4px solid var(--credpay-gold);
+  border-radius: 12px;
+}
+
+#kc-page-title,
+.card-pf label,
+.card-pf .control-label,
+#kc-form-options,
+.kc-login-tooltip {
+  color: var(--credpay-text);
+}
+
+.card-pf .pf-c-form-control,
+.card-pf .form-control,
+.card-pf input[type="text"],
+.card-pf input[type="email"],
+.card-pf input[type="password"] {
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--credpay-text);
+  border: 1px solid var(--credpay-border);
+  border-radius: 8px;
+}
+
+/* Password fields sit in an input group with a show/hide button */
+.login-pf .card-pf .pf-c-input-group {
+  background: transparent;
+}
+
+/* Edge adds its own reveal button; Keycloak already has one */
+.login-pf .card-pf input::-ms-reveal {
+  display: none;
+}
+
+.login-pf .card-pf .pf-c-input-group .pf-c-form-control,
+.login-pf .card-pf .pf-c-input-group input {
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--credpay-text);
+  border: 1px solid var(--credpay-border);
+  border-radius: 8px 0 0 8px;
+}
+
+.login-pf .card-pf .pf-c-input-group .pf-c-button.pf-m-control {
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--credpay-gold-light);
+  border: 1px solid var(--credpay-border);
+  border-left: none;
+  border-radius: 0 8px 8px 0;
+}
+
+.login-pf .card-pf .pf-c-input-group .pf-c-button.pf-m-control::after {
+  border: none;
+}
+
+.card-pf .pf-c-form-control:focus,
+.card-pf input:focus {
+  border-color: var(--credpay-gold);
+  outline: none;
+}
+
+.card-pf .pf-c-button.pf-m-primary,
+.card-pf .btn-primary {
+  background: linear-gradient(135deg, var(--credpay-gold-light) 0%, var(--credpay-gold) 48%, var(--credpay-gold-dark) 100%);
+  border: none;
+  border-radius: 8px;
+  color: var(--credpay-bg);
+  font-weight: 600;
+}
+
+/* "Or sign in with" - Google keeps its own white button (brand guidelines) */
+#kc-social-providers hr {
+  border-top-color: var(--credpay-border);
+}
+
+#kc-social-providers .pf-c-button,
+#kc-social-providers a {
+  border-radius: 8px;
+}
+
+.card-pf a,
+#kc-registration a,
+#kc-info-wrapper a {
+  color: var(--credpay-gold-light);
+}
+
+#kc-info,
+#kc-info-wrapper {
+  background: transparent;
+  color: var(--credpay-text-muted);
+  border-top: 1px solid var(--credpay-border);
+}
+
+.kc-feedback-text,
+.pf-c-helper-text,
+#input-error,
+.kc-input-error-message {
+  color: #F87171;
+}

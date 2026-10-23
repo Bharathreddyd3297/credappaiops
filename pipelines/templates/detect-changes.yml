@@ -1,0 +1,62 @@
+# =====================================================================
+# Decide which services to build: only those whose folder changed.
+#
+# Sets one output variable per service (user_service, payment_service,
+# customer_portal, admin_portal) to true/false, read by the Build stage.
+# Everything is built when:
+#   - the run was started manually, or buildAll is ticked
+#   - anything under pipelines/ changed (the build itself changed)
+#
+# Compared against:
+#   - pull request: the target branch (all commits of the PR)
+#   - main: the previous commit. With "squash" or "merge" PR completion
+#     (direct pushes to main are blocked by branch policy) that is the
+#     whole pull request.
+# =====================================================================
+parameters:
+  - name: buildAll
+    type: boolean
+    default: false
+
+jobs:
+  - job: DetectChanges
+    displayName: Which services changed?
+    steps:
+      - checkout: self
+        fetchDepth: 0
+
+      - bash: |
+          set -euo pipefail
+          services="user-service payment-service customer-portal admin-portal"
+          all=false
+
+          if [ "${{ parameters.buildAll }}" = "True" ] || [ "$(Build.Reason)" = "Manual" ]; then
+            all=true
+            changed=""
+            echo "Building everything (manual run or buildAll)."
+          else
+            if [ "$(Build.Reason)" = "PullRequest" ]; then
+              target="origin/${SYSTEM_PULLREQUEST_TARGETBRANCH#refs/heads/}"
+              base=$(git merge-base "$target" HEAD)
+            else
+              base=$(git rev-parse HEAD^1)
+            fi
+            changed=$(git diff --name-only "$base" HEAD)
+            echo "Changed files since $base:"
+            echo "$changed" | sed 's/^/  /'
+            if echo "$changed" | grep -q '^pipelines/'; then
+              all=true
+              echo "Pipeline files changed - building everything."
+            fi
+          fi
+
+          for service in $services; do
+            build=$all
+            if [ "$all" = false ] && echo "$changed" | grep -q "^$service/"; then
+              build=true
+            fi
+            echo "##vso[task.setvariable variable=${service//-/_};isOutput=true]$build"
+            echo "$service -> build: $build"
+          done
+        name: detect
+        displayName: Detect changed services

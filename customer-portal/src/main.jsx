@@ -1,0 +1,23 @@
+import React from 'react';
+import ReactDOM from 'react-dom/client';
+import { BrowserRouter } from 'react-router-dom';
+import { ThemeProvider } from '@mui/material/styles';
+import CssBaseline from '@mui/material/CssBaseline';
+import { AuthProvider } from 'react-oidc-context';
+import theme from './theme/theme';
+import { userManager, onSigninCallback } from './auth/oidc';
+import App from './App';
+import './index.css';
+
+ReactDOM.createRoot(document.getElementById('root')).render(
+  <React.StrictMode>
+    <AuthProvider userManager={userManager} onSigninCallback={onSigninCallback}>
+      <BrowserRouter>
+        <ThemeProvider theme={theme}>
+          <CssBaseline />
+          <App />
+        </ThemeProvider>
+      </BrowserRouter>
+    </AuthProvider>
+  </React.StrictMode>,
+);

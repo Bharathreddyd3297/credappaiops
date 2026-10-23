@@ -1,0 +1,34 @@
+# =====================================================================
+# Frontend Service - ClusterIP (exposed externally via the Ingress)
+# =====================================================================
+# Blue/Green: `version` picks which color (frontend-blue / frontend-green)
+# receives live traffic. "blue" below is only the bootstrap default for a
+# brand new cluster - apply this file ONCE to create the Service.
+#
+# After that, do NOT `kubectl apply` this file again: it was confirmed
+# live that re-applying it resets spec.selector.version back to "blue"
+# even when the file is byte-for-byte unchanged (kubectl apply's 3-way
+# merge does not leave this field alone the way you might expect). Once
+# the Service exists, its selector is owned exclusively by
+# `kubectl patch svc frontend ... -p '{"spec":{"selector":{"version":"..."}}}'`,
+# run by the pipeline's "Switch Traffic" step after a new color passes
+# its smoke test. See azure-pipelines.yml's "Deploy Frontend" step and
+# STAGE2-CHANGES.md §2.5 for the full story.
+# =====================================================================
+apiVersion: v1
+kind: Service
+metadata:
+  name: frontend
+  namespace: credpay
+  labels:
+    app.kubernetes.io/name: frontend
+    app.kubernetes.io/part-of: credpay
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: frontend
+    version: blue
+  ports:
+    - name: http
+      port: 80
+      targetPort: http

@@ -1,0 +1,48 @@
+# =====================================================================
+# CredAI Service - RBAC (read-only, scoped to the credpay namespace only)
+# =====================================================================
+# A dedicated ServiceAccount, separate from every other identity in this
+# project (Prometheus's, the kubelet's, etc.). Namespaced Role (not a
+# ClusterRole) because app/clients/kubernetes_client.py only ever reads
+# Pods/Deployments/Events inside KUBERNETES_NAMESPACE (credpay) - no
+# broader access is requested.
+# =====================================================================
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: credai-service
+  namespace: credpay
+  labels:
+    app.kubernetes.io/name: credai-service
+    app.kubernetes.io/part-of: credpay
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: credai-service
+  namespace: credpay
+  labels:
+    app.kubernetes.io/name: credai-service
+rules:
+  - apiGroups: [""]
+    resources: ["pods", "events"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["apps"]
+    resources: ["deployments"]
+    verbs: ["get", "list", "watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: credai-service
+  namespace: credpay
+  labels:
+    app.kubernetes.io/name: credai-service
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: credai-service
+subjects:
+  - kind: ServiceAccount
+    name: credai-service
+    namespace: credpay

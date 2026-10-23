@@ -1,0 +1,28 @@
+# Keep the build context small and the image clean.
+
+# Dependencies & build output (installed/built INSIDE the image)
+node_modules
+dist
+
+# Version control & IDE
+.git
+.gitignore
+.vscode
+.idea
+
+# Environment & secrets
+.env
+.env.*
+
+# Docker files
+Dockerfile
+.dockerignore
+
+# Docs & logs
+README.md
+*.md
+*.log
+
+# OS noise
+.DS_Store
+Thumbs.db

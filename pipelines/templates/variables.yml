@@ -1,0 +1,19 @@
+# =====================================================================
+# Shared pipeline settings - the only place to change names
+# =====================================================================
+variables:
+  # Azure Container Registry (created manually, outside Terraform)
+  acrServiceConnection: cred-acr            # Docker Registry service connection
+  acrLoginServer: creddemoacr.azurecr.io
+  imageRepositoryPrefix: credpay            # -> creddemoacr.azurecr.io/credpay/<service>
+
+  # Self-hosted SonarQube (container on a VM)
+  sonarServiceConnection: sqsc
+
+  # Every image of one pipeline run gets the same immutable tag; dev, qa
+  # and prod later deploy exactly this tag (build once, promote).
+  imageTag: 1.0.$(Build.BuildId)
+
+  # Scanner versions are pinned so every run behaves the same; bump on purpose
+  trivyImage: aquasec/trivy:0.76.1
+  gitleaksImage: zricethezav/gitleaks:v8.30.1

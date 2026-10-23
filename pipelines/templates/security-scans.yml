@@ -1,0 +1,64 @@
+# =====================================================================
+# Repository-wide security scans (run before anything is built)
+#
+#  1. gitleaks - secrets anywhere in the git history. BLOCKING.
+#  2. Trivy filesystem - vulnerable dependencies and misconfigurations in
+#     Dockerfiles, Kubernetes and Terraform files. REPORT ONLY for now:
+#     the k8s/ and terraform/ folders are rewritten in the Kubernetes
+#     phase, after which this becomes blocking too.
+# =====================================================================
+jobs:
+  - job: SecretScan
+    displayName: gitleaks - secrets in git history
+    steps:
+      - checkout: self
+        fetchDepth: 0          # full history: a secret deleted later is still a leak
+
+      - bash: |
+          set -euo pipefail
+          mkdir -p "$(Build.ArtifactStagingDirectory)/gitleaks"
+          docker run --rm --user "$(id -u):$(id -g)" \
+            -v "$(Build.SourcesDirectory):/repo" \
+            -v "$(Build.ArtifactStagingDirectory)/gitleaks:/out" \
+            $(gitleaksImage) git /repo \
+              --redact --no-banner \
+              --report-format sarif --report-path /out/gitleaks.sarif
+        displayName: Scan history for secrets (fails on any leak)
+
+      - task: PublishPipelineArtifact@1
+        displayName: Publish gitleaks report
+        condition: succeededOrFailed()
+        inputs:
+          targetPath: $(Build.ArtifactStagingDirectory)/gitleaks
+          artifact: gitleaks-report
+
+  - job: TrivyFilesystem
+    displayName: Trivy - dependencies and IaC (report only)
+    steps:
+      - checkout: self
+
+      - bash: |
+          set -euo pipefail
+          mkdir -p "$(Build.ArtifactStagingDirectory)/trivy-fs"
+          docker run --rm \
+            -v "$(Build.SourcesDirectory):/repo:ro" \
+            -v "$(Build.ArtifactStagingDirectory)/trivy-fs:/out" \
+            $(trivyImage) fs /repo \
+              --scanners vuln,misconfig \
+              --severity HIGH,CRITICAL --ignore-unfixed \
+              --skip-dirs /repo/customer-portal/node_modules,/repo/admin-portal/node_modules \
+              --format template --template "@/contrib/junit.tpl" \
+              --output /out/trivy-fs-junit.xml
+          docker run --rm -v "$(Build.SourcesDirectory):/repo:ro" \
+            $(trivyImage) fs /repo --scanners vuln,misconfig \
+              --severity HIGH,CRITICAL --ignore-unfixed --format table
+        displayName: Scan dependencies and IaC files
+
+      - task: PublishTestResults@2
+        displayName: Publish Trivy filesystem results
+        condition: succeededOrFailed()
+        inputs:
+          testResultsFormat: JUnit
+          testResultsFiles: $(Build.ArtifactStagingDirectory)/trivy-fs/trivy-fs-junit.xml
+          testRunTitle: Trivy filesystem scan (report only)
+          failTaskOnFailedTests: false

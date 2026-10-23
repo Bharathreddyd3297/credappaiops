@@ -1,0 +1,185 @@
+{
+  "__inputs": [
+    { "name": "DS_PROMETHEUS", "label": "Prometheus", "description": "", "type": "datasource", "pluginId": "prometheus", "pluginName": "Prometheus" }
+  ],
+  "__requires": [
+    { "type": "grafana", "id": "grafana", "name": "Grafana", "version": "11.3.1" },
+    { "type": "datasource", "id": "prometheus", "name": "Prometheus", "version": "1.0.0" },
+    { "type": "panel", "id": "timeseries", "name": "Time series", "version": "" },
+    { "type": "panel", "id": "gauge", "name": "Gauge", "version": "" },
+    { "type": "panel", "id": "stat", "name": "Stat", "version": "" }
+  ],
+  "annotations": {
+    "list": [
+      { "builtIn": 1, "datasource": { "type": "grafana", "uid": "-- Grafana --" }, "enable": true, "hide": true, "iconColor": "rgba(0, 211, 255, 1)", "name": "Annotations & Alerts", "type": "dashboard" }
+    ]
+  },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 0,
+  "id": null,
+  "links": [],
+  "liveNow": false,
+  "panels": [
+    {
+      "id": 1,
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
+      "type": "timeseries",
+      "title": "Request Rate - user-service (by endpoint)",
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "targets": [
+        { "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" }, "expr": "sum(rate(http_server_requests_seconds_count{job=\"kubernetes-pods\", uri!=\"/actuator/prometheus\"}[5m])) by (uri)", "legendFormat": "{{uri}}", "refId": "A", "instant": false, "range": true }
+      ],
+      "fieldConfig": { "defaults": { "unit": "reqps" }, "overrides": [] },
+      "options": {}
+    },
+    {
+      "id": 2,
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
+      "type": "timeseries",
+      "title": "Request Rate - payment-service (by handler)",
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "targets": [
+        { "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" }, "expr": "sum(rate(http_requests_total{job=\"kubernetes-pods\"}[5m])) by (handler)", "legendFormat": "{{handler}}", "refId": "A", "instant": false, "range": true }
+      ],
+      "fieldConfig": { "defaults": { "unit": "reqps" }, "overrides": [] },
+      "options": {}
+    },
+    {
+      "id": 3,
+      "gridPos": { "h": 6, "w": 8, "x": 0, "y": 8 },
+      "type": "gauge",
+      "title": "Error Rate % - user-service",
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "targets": [
+        { "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" }, "expr": "sum(rate(http_server_requests_seconds_count{job=\"kubernetes-pods\", status=~\"5..\"}[5m])) / sum(rate(http_server_requests_seconds_count{job=\"kubernetes-pods\"}[5m])) * 100", "refId": "A", "instant": true, "range": false }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent", "min": 0, "max": 100,
+          "thresholds": { "mode": "absolute", "steps": [ { "color": "green", "value": null }, { "color": "yellow", "value": 1 }, { "color": "red", "value": 5 } ] }
+        },
+        "overrides": []
+      },
+      "options": { "showThresholdLabels": false, "showThresholdMarkers": true, "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false } }
+    },
+    {
+      "id": 4,
+      "gridPos": { "h": 6, "w": 8, "x": 8, "y": 8 },
+      "type": "gauge",
+      "title": "Error Rate % - payment-service",
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "targets": [
+        { "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" }, "expr": "sum(rate(http_requests_total{job=\"kubernetes-pods\", status=~\"5..\"}[5m])) / sum(rate(http_requests_total{job=\"kubernetes-pods\"}[5m])) * 100", "refId": "A", "instant": true, "range": false }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent", "min": 0, "max": 100,
+          "thresholds": { "mode": "absolute", "steps": [ { "color": "green", "value": null }, { "color": "yellow", "value": 1 }, { "color": "red", "value": 5 } ] }
+        },
+        "overrides": []
+      },
+      "options": { "showThresholdLabels": false, "showThresholdMarkers": true, "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false } }
+    },
+    {
+      "id": 5,
+      "gridPos": { "h": 6, "w": 8, "x": 16, "y": 8 },
+      "type": "stat",
+      "title": "Requests In Flight - payment-service",
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "targets": [
+        { "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" }, "expr": "sum(http_requests_inprogress{job=\"kubernetes-pods\"})", "refId": "A", "instant": true, "range": false }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": { "mode": "absolute", "steps": [ { "color": "green", "value": null }, { "color": "yellow", "value": 20 }, { "color": "red", "value": 50 } ] }
+        },
+        "overrides": []
+      },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "textMode": "value_and_name", "colorMode": "value", "graphMode": "area" }
+    },
+    {
+      "id": 6,
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 14 },
+      "type": "timeseries",
+      "title": "p95 Latency - user-service (by endpoint)",
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "targets": [
+        { "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" }, "expr": "histogram_quantile(0.95, sum(rate(http_server_requests_seconds_bucket{job=\"kubernetes-pods\"}[5m])) by (le, uri))", "legendFormat": "{{uri}}", "refId": "A", "instant": false, "range": true }
+      ],
+      "fieldConfig": { "defaults": { "unit": "s" }, "overrides": [] },
+      "options": {}
+    },
+    {
+      "id": 7,
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 14 },
+      "type": "timeseries",
+      "title": "p95 Latency - payment-service (by handler)",
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "targets": [
+        { "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" }, "expr": "histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket{job=\"kubernetes-pods\"}[5m])) by (le, handler))", "legendFormat": "{{handler}}", "refId": "A", "instant": false, "range": true }
+      ],
+      "fieldConfig": { "defaults": { "unit": "s" }, "overrides": [] },
+      "options": {}
+    },
+    {
+      "id": 8,
+      "gridPos": { "h": 6, "w": 8, "x": 0, "y": 22 },
+      "type": "gauge",
+      "title": "JVM Heap Usage % - user-service",
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "targets": [
+        { "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" }, "expr": "jvm_memory_used_bytes{job=\"kubernetes-pods\", area=\"heap\"} / jvm_memory_max_bytes{job=\"kubernetes-pods\", area=\"heap\"} * 100", "legendFormat": "{{pod}}", "refId": "A", "instant": true, "range": false }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent", "min": 0, "max": 100,
+          "thresholds": { "mode": "absolute", "steps": [ { "color": "green", "value": null }, { "color": "yellow", "value": 70 }, { "color": "red", "value": 90 } ] }
+        },
+        "overrides": []
+      },
+      "options": { "showThresholdLabels": false, "showThresholdMarkers": true, "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false } }
+    },
+    {
+      "id": 9,
+      "gridPos": { "h": 6, "w": 8, "x": 8, "y": 22 },
+      "type": "gauge",
+      "title": "DB Connection Pool Usage % - user-service",
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "targets": [
+        { "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" }, "expr": "hikaricp_connections_active{job=\"kubernetes-pods\"} / hikaricp_connections_max{job=\"kubernetes-pods\"} * 100", "legendFormat": "{{pod}}", "refId": "A", "instant": true, "range": false }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent", "min": 0, "max": 100,
+          "thresholds": { "mode": "absolute", "steps": [ { "color": "green", "value": null }, { "color": "yellow", "value": 70 }, { "color": "red", "value": 90 } ] }
+        },
+        "overrides": []
+      },
+      "options": { "showThresholdLabels": false, "showThresholdMarkers": true, "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false } }
+    },
+    {
+      "id": 10,
+      "gridPos": { "h": 6, "w": 8, "x": 16, "y": 22 },
+      "type": "stat",
+      "title": "Combined Request Rate (both services)",
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "targets": [
+        { "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" }, "expr": "sum(rate(http_server_requests_seconds_count{job=\"kubernetes-pods\"}[5m])) + sum(rate(http_requests_total{job=\"kubernetes-pods\"}[5m]))", "refId": "A", "instant": true, "range": false }
+      ],
+      "fieldConfig": { "defaults": { "unit": "reqps" }, "overrides": [] },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "textMode": "value", "colorMode": "value", "graphMode": "area" }
+    }
+  ],
+  "refresh": "30s",
+  "schemaVersion": 39,
+  "tags": ["credpay", "observability", "application-metrics"],
+  "templating": { "list": [] },
+  "time": { "from": "now-1h", "to": "now" },
+  "timepicker": {},
+  "timezone": "",
+  "title": "CredPay - Application Metrics (user-service & payment-service)",
+  "uid": "credpay-app-metrics",
+  "version": 1,
+  "weekStart": ""
+}

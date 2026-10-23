@@ -1,0 +1,28 @@
+# =====================================================================
+# Payment Service HorizontalPodAutoscaler
+# =====================================================================
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: payment-service
+  namespace: credpay
+  labels:
+    app.kubernetes.io/name: payment-service
+    app.kubernetes.io/part-of: credpay
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: payment-service
+  minReplicas: 2
+  maxReplicas: 6
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 75
+  behavior:
+    scaleDown:
+      stabilizationWindowSeconds: 300

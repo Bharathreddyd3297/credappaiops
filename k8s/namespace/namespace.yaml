@@ -1,0 +1,20 @@
+# =====================================================================
+# CredPay namespace
+# =====================================================================
+# Phase 1 keeps auth simple: the app talks to PostgreSQL with a username +
+# password (stored in the credpay-db Secret). There is NO Azure Workload
+# Identity, because the Terraform project does not provision a User-Assigned
+# Managed Identity or a Federated Identity Credential. Pods therefore use the
+# namespace's default ServiceAccount.
+# =====================================================================
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: credpay
+  labels:
+    app.kubernetes.io/part-of: credpay
+    # "baseline" is enforced because the frontend's nginx:stable-alpine image
+    # binds :80 as root. Migrate the frontend to nginxinc/nginx-unprivileged
+    # (listens on 8080, non-root) to raise this to "restricted".
+    pod-security.kubernetes.io/enforce: baseline
+    pod-security.kubernetes.io/warn: restricted

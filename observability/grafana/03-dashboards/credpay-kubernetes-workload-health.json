@@ -1,0 +1,153 @@
+{
+  "__inputs": [
+    { "name": "DS_PROMETHEUS", "label": "Prometheus", "description": "", "type": "datasource", "pluginId": "prometheus", "pluginName": "Prometheus" }
+  ],
+  "__requires": [
+    { "type": "grafana", "id": "grafana", "name": "Grafana", "version": "11.3.1" },
+    { "type": "datasource", "id": "prometheus", "name": "Prometheus", "version": "1.0.0" },
+    { "type": "panel", "id": "piechart", "name": "Pie chart", "version": "" },
+    { "type": "panel", "id": "bargauge", "name": "Bar gauge", "version": "" },
+    { "type": "panel", "id": "gauge", "name": "Gauge", "version": "" },
+    { "type": "panel", "id": "stat", "name": "Stat", "version": "" },
+    { "type": "panel", "id": "table", "name": "Table", "version": "" },
+    { "type": "panel", "id": "timeseries", "name": "Time series", "version": "" }
+  ],
+  "annotations": {
+    "list": [
+      { "builtIn": 1, "datasource": { "type": "grafana", "uid": "-- Grafana --" }, "enable": true, "hide": true, "iconColor": "rgba(0, 211, 255, 1)", "name": "Annotations & Alerts", "type": "dashboard" }
+    ]
+  },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 0,
+  "id": null,
+  "links": [],
+  "liveNow": false,
+  "panels": [
+    {
+      "id": 1,
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
+      "type": "piechart",
+      "title": "Pods by Namespace (cluster-wide)",
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "targets": [
+        { "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" }, "expr": "count(kube_pod_info) by (namespace)", "legendFormat": "{{namespace}}", "refId": "A", "instant": true, "range": false }
+      ],
+      "fieldConfig": { "defaults": {}, "overrides": [] },
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "pieType": "donut",
+        "legend": { "displayMode": "table", "placement": "right", "values": ["value", "percent"] }
+      }
+    },
+    {
+      "id": 2,
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
+      "type": "bargauge",
+      "title": "Deployment Availability % (credpay)",
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "targets": [
+        { "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" }, "expr": "kube_deployment_status_replicas_available{namespace=\"credpay\"} / kube_deployment_spec_replicas{namespace=\"credpay\"} * 100", "legendFormat": "{{deployment}}", "refId": "A", "instant": true, "range": false }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent", "min": 0, "max": 100,
+          "thresholds": { "mode": "absolute", "steps": [ { "color": "red", "value": null }, { "color": "yellow", "value": 50 }, { "color": "green", "value": 100 } ] }
+        },
+        "overrides": []
+      },
+      "options": { "displayMode": "gradient", "orientation": "horizontal", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false } }
+    },
+    {
+      "id": 3,
+      "gridPos": { "h": 6, "w": 8, "x": 0, "y": 8 },
+      "type": "stat",
+      "title": "Total Container Restarts (credpay)",
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "targets": [
+        { "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" }, "expr": "sum(kube_pod_container_status_restarts_total{namespace=\"credpay\"})", "refId": "A", "instant": true, "range": false }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": { "mode": "absolute", "steps": [ { "color": "green", "value": null }, { "color": "red", "value": 1 } ] }
+        },
+        "overrides": []
+      },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "textMode": "value", "colorMode": "background", "graphMode": "none" }
+    },
+    {
+      "id": 4,
+      "gridPos": { "h": 6, "w": 8, "x": 8, "y": 8 },
+      "type": "gauge",
+      "title": "HPA Scaling Headroom % (credpay)",
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "targets": [
+        { "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" }, "expr": "kube_horizontalpodautoscaler_status_current_replicas{namespace=\"credpay\"} / kube_horizontalpodautoscaler_spec_max_replicas{namespace=\"credpay\"} * 100", "legendFormat": "{{horizontalpodautoscaler}}", "refId": "A", "instant": true, "range": false }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent", "min": 0, "max": 100,
+          "thresholds": { "mode": "absolute", "steps": [ { "color": "green", "value": null }, { "color": "yellow", "value": 60 }, { "color": "red", "value": 90 } ] }
+        },
+        "overrides": []
+      },
+      "options": { "showThresholdLabels": false, "showThresholdMarkers": true, "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false } }
+    },
+    {
+      "id": 5,
+      "gridPos": { "h": 6, "w": 8, "x": 16, "y": 8 },
+      "type": "stat",
+      "title": "Node Exporter DaemonSet Ready %",
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "targets": [
+        { "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" }, "expr": "kube_daemonset_status_number_ready{namespace=\"monitoring\",daemonset=\"node-exporter\"} / kube_daemonset_status_desired_number_scheduled{namespace=\"monitoring\",daemonset=\"node-exporter\"} * 100", "refId": "A", "instant": true, "range": false }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "thresholds": { "mode": "absolute", "steps": [ { "color": "red", "value": null }, { "color": "yellow", "value": 50 }, { "color": "green", "value": 100 } ] }
+        },
+        "overrides": []
+      },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "textMode": "value", "colorMode": "background", "graphMode": "none" }
+    },
+    {
+      "id": 6,
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 14 },
+      "type": "table",
+      "title": "Pod Resource Requests (credpay)",
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "targets": [
+        { "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" }, "expr": "kube_pod_container_resource_requests{namespace=\"credpay\"}", "format": "table", "refId": "A", "instant": true, "range": false }
+      ],
+      "fieldConfig": { "defaults": {}, "overrides": [] },
+      "options": { "showHeader": true },
+      "transformations": [
+        { "id": "organize", "options": { "excludeByName": { "Time": true, "__name__": true, "uid": true } } }
+      ]
+    },
+    {
+      "id": 7,
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 22 },
+      "type": "timeseries",
+      "title": "Pod Count Trend by Namespace",
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "targets": [
+        { "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" }, "expr": "count(kube_pod_info) by (namespace)", "legendFormat": "{{namespace}}", "refId": "A", "instant": false, "range": true }
+      ],
+      "fieldConfig": { "defaults": {}, "overrides": [] },
+      "options": {}
+    }
+  ],
+  "refresh": "30s",
+  "schemaVersion": 39,
+  "tags": ["credpay", "observability", "kubernetes"],
+  "templating": { "list": [] },
+  "time": { "from": "now-1h", "to": "now" },
+  "timepicker": {},
+  "timezone": "",
+  "title": "CredPay - Kubernetes Workload Health",
+  "uid": "credpay-workload-health",
+  "version": 1,
+  "weekStart": ""
+}

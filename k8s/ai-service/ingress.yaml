@@ -1,0 +1,34 @@
+# =====================================================================
+# CredAI Service - additional Ingress (does NOT modify k8s/ingress/ingress.yaml)
+# =====================================================================
+# A second, separate Ingress object routing only /api/ai to
+# credai-service. ingress-nginx merges rules from every Ingress
+# resource sharing the same ingressClassName into one server block and
+# matches the most specific path first, regardless of which Ingress
+# object it came from - so this coexists safely with the existing
+# credpay Ingress's catch-all "/" -> frontend rule without editing that
+# file at all.
+# =====================================================================
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: credai-service
+  namespace: credpay
+  labels:
+    app.kubernetes.io/name: credai-service
+    app.kubernetes.io/part-of: credpay
+  annotations:
+    nginx.ingress.kubernetes.io/ssl-redirect: "false"
+    nginx.ingress.kubernetes.io/use-regex: "true"
+spec:
+  ingressClassName: nginx
+  rules:
+    - http:
+        paths:
+          - path: /api/ai
+            pathType: Prefix
+            backend:
+              service:
+                name: credai-service
+                port:
+                  number: 8010

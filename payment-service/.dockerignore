@@ -1,0 +1,33 @@
+# Keep the build context small and the image clean.
+
+# Version control
+.git/
+.gitignore
+
+# Python virtual environments & caches
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# IDE / editor
+.vscode/
+.idea/
+
+# Docker files themselves
+Dockerfile
+.dockerignore
+
+# Docs, logs, secrets
+README.md
+*.md
+*.log
+.env
+.env.*
+
+# OS noise
+.DS_Store
+Thumbs.db

@@ -1,0 +1,94 @@
+# =====================================================================
+# CredAI Service (FastAPI / Python) - REST API on port 8010
+# =====================================================================
+# replicas: 1 (not 2, unlike user-service/payment-service) and
+# maxSurge: 0 from the start - this cluster is a 2-node pool already
+# near its memory ceiling (see observability/prometheus/README.md
+# "Resource footprint" and the rollout-strategy fixes on the other
+# Deployments). Starting this NEW workload conservatively avoids
+# repeating that same capacity incident a third time, rather than
+# fixing it after the fact again.
+# =====================================================================
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: credai-service
+  namespace: credpay
+  labels:
+    app.kubernetes.io/name: credai-service
+    app.kubernetes.io/part-of: credpay
+spec:
+  replicas: 1
+  revisionHistoryLimit: 5
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: credai-service
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 0
+      maxUnavailable: 1
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: credai-service
+        app.kubernetes.io/part-of: credpay
+    spec:
+      serviceAccountName: credai-service
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1002
+        seccompProfile:
+          type: RuntimeDefault
+      volumes:
+        # Same precaution as user-service/payment-service: a writable
+        # scratch dir for a non-root, read-only-root-filesystem Pod.
+        - name: tmp
+          emptyDir: {}
+      containers:
+        - name: credai-service
+          # Images live in the existing ACR. AKS is already attached to
+          # it via: az aks update --attach-acr credpayacrs1
+          image: credpayacrs1.azurecr.io/credpay/ai-service:latest
+          imagePullPolicy: Always
+          ports:
+            - name: http
+              containerPort: 8010
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+          envFrom:
+            - configMapRef:
+                name: credai-config
+            - secretRef:
+                name: credai-secrets
+          startupProbe:
+            httpGet:
+              path: /api/ai/health
+              port: http
+            failureThreshold: 20
+            periodSeconds: 3
+          readinessProbe:
+            httpGet:
+              path: /api/ai/health
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /api/ai/health
+              port: http
+            initialDelaySeconds: 20
+            periodSeconds: 20
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "128Mi"
+            limits:
+              cpu: "400m"
+              memory: "384Mi"
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]

@@ -1,0 +1,19 @@
+# =====================================================================
+# Trivy risk acceptances for the user-service image
+# =====================================================================
+# Every entry needs: the reason it does not affect us, who accepted it,
+# and an expiry date (exp:). After that date Trivy reports it again and
+# the pipeline fails until someone fixes it or re-accepts it.
+#
+# Accepted 2026-10-22 (instructor review)
+# spring-webmvc 6.2.19: fixed only in Spring Framework 7 (needs Spring
+# Boot 4 - planned migration). Not exploitable here: user-service is a
+# JSON REST API and uses neither XsltView nor Server-Sent Events / view
+# fragments (checked: no XsltView, SseEmitter or text/event-stream in src).
+# =====================================================================
+
+# Remote code execution via improper path limitation in XsltView
+CVE-2026-47884 exp:2027-01-31
+
+# Stream corruption in Server-Sent Events with view fragments
+CVE-2026-47890 exp:2027-01-31

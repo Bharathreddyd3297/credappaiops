@@ -1,0 +1,20 @@
+# =====================================================================
+# CredAI Service - non-secret configuration
+# =====================================================================
+# The Azure OpenAI endpoint/key/deployment and any Azure Service
+# Principal credentials live in the credai-secrets Secret (see secret.example.yaml), never here.
+# =====================================================================
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: credai-config
+  namespace: credpay
+  labels:
+    app.kubernetes.io/name: credai-service
+    app.kubernetes.io/part-of: credpay
+data:
+  PROMETHEUS_URL: "http://prometheus.monitoring.svc.cluster.local:9090"
+  KUBERNETES_NAMESPACE: "credpay"
+  KUBERNETES_MONITORING_NAMESPACE: "monitoring"
+  CORS_ALLOW_ORIGINS: "*"
+  LOG_LEVEL: "INFO"

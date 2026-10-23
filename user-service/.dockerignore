@@ -1,0 +1,28 @@
+# Keep the build context small and clean. Everything here is excluded
+# from the image build, improving speed and avoiding stale artifacts.
+
+# Local build output (the JAR is built INSIDE the image, not copied in)
+target/
+
+# Version control & IDE
+.git/
+.gitignore
+.idea/
+*.iml
+.vscode/
+.settings/
+.project
+.classpath
+
+# Docker files themselves
+Dockerfile
+.dockerignore
+
+# Docs & misc
+README.md
+*.md
+*.log
+.DS_Store
+
+# OS / editor noise
+Thumbs.db

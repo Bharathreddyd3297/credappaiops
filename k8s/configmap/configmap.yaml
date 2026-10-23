@@ -1,0 +1,31 @@
+# =====================================================================
+# CredPay non-secret configuration
+# =====================================================================
+# Only NON-sensitive values live here. The DB password is NOT in this file -
+# it lives in the credpay-db Secret (see k8s/secrets/).
+#
+# DB_HOST / SPRING_DATASOURCE_URL below are already set to the real Azure
+# PostgreSQL FQDN (public in Phase 1). If the server is ever recreated with a
+# different name, get the new value with: terraform output -raw postgres_fqdn
+# =====================================================================
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: credpay-config
+  namespace: credpay
+  labels:
+    app.kubernetes.io/part-of: credpay
+data:
+  # ---- Shared DB coordinates (consumed by both backends) ----
+  DB_HOST: "psql-credpays2.postgres.database.azure.com"
+  DB_PORT: "5432"
+  DB_NAME: "credpay"
+  DB_USERNAME: "credpayadmin"
+
+  # ---- User Service (Spring Boot) ----
+  # Spring relaxed-binding: SPRING_DATASOURCE_URL overrides the property in
+  # application.properties. sslmode=require enforces TLS to Azure PostgreSQL.
+  SPRING_DATASOURCE_URL: "jdbc:postgresql://psql-credpays2.postgres.database.azure.com:5432/credpay?sslmode=require"
+  SPRING_DATASOURCE_USERNAME: "credpayadmin"
+  # Cap the JVM heap to the container memory limit.
+  JAVA_TOOL_OPTIONS: "-XX:MaxRAMPercentage=75.0"

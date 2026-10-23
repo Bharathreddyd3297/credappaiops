@@ -1,0 +1,32 @@
+# =====================================================================
+# CredAI Service - HorizontalPodAutoscaler
+# =====================================================================
+# min:1/max:3, deliberately smaller than other services' 2/6 - kept
+# modest given this cluster's known-tight capacity (see deployment.yaml
+# comment). Raise once real usage data justifies it.
+# =====================================================================
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: credai-service
+  namespace: credpay
+  labels:
+    app.kubernetes.io/name: credai-service
+    app.kubernetes.io/part-of: credpay
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: credai-service
+  minReplicas: 1
+  maxReplicas: 3
+  behavior:
+    scaleDown:
+      stabilizationWindowSeconds: 300
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 75

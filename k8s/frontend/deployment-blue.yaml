@@ -1,0 +1,89 @@
+# =====================================================================
+# Frontend (React + Nginx) - BLUE slot
+# =====================================================================
+# Blue/Green: the pipeline always keeps both frontend-blue and
+# frontend-green running. On each deploy it restarts whichever color is
+# NOT currently receiving traffic (see the frontend Service), runs a
+# smoke test against it, and only then flips the frontend Service
+# selector to point at it. The other color is left running untouched so
+# the previous version stays one flip away if something goes wrong.
+# =====================================================================
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: frontend-blue
+  namespace: credpay
+  labels:
+    app.kubernetes.io/name: frontend
+    app.kubernetes.io/part-of: credpay
+    version: blue
+spec:
+  replicas: 2
+  revisionHistoryLimit: 5
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: frontend
+      version: blue
+  strategy:
+    type: RollingUpdate
+    # maxSurge: 0 / maxUnavailable: 1 - see k8s/user-service/deployment.yaml
+    # for why (cluster has no spare scheduling capacity for a surge Pod).
+    # Safe here specifically: this color is never the one taking live
+    # traffic while its own Deployment is being rolled - see "Frontend
+    # blue/green" in k8s/README.md.
+    rollingUpdate:
+      maxSurge: 0
+      maxUnavailable: 1
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: frontend
+        app.kubernetes.io/part-of: credpay
+        version: blue
+    spec:
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: false # nginx:stable-alpine master needs to bind :80 / write pid
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: frontend
+          # Images live in the existing ACR (credproj.azurecr.io). AKS is
+          # attached to it via: az aks update --attach-acr credproj
+          image: credpayacrs1.azurecr.io/credpay/frontend:latest
+          # "Always" because the tag is the mutable `:latest` - IfNotPresent
+          # would let a node keep serving a stale cached image after a fresh
+          # push + `kubectl rollout restart`.
+          imagePullPolicy: Always
+          ports:
+            - name: http
+              containerPort: 80
+          readinessProbe:
+            httpGet:
+              path: /
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 20
+          resources:
+            requests:
+              cpu: "50m"
+              memory: "64Mi"
+            limits:
+              cpu: "200m"
+              memory: "128Mi"
+          # NOTE: no `capabilities: drop: ["ALL"]` here (unlike the backends).
+          # nginx:stable-alpine's root master process calls chown() on its
+          # cache dirs (/var/cache/nginx/*) at startup to hand them to the
+          # unprivileged "nginx" worker user - that chown() requires
+          # CAP_CHOWN. Dropping ALL capabilities (even while still UID 0)
+          # removes CAP_CHOWN too, which crashes the container with
+          # "nginx: [emerg] chown(...) failed (Operation not permitted)".
+          # Confirmed by testing directly against the live AKS cluster.
+          securityContext:
+            allowPrivilegeEscalation: false

@@ -1,0 +1,74 @@
+# =====================================================================
+# One-shot Job: apply schema.sql to the Azure PostgreSQL Flexible Server
+# =====================================================================
+# WHY: the User Service runs with spring.jpa.hibernate.ddl-auto=validate,
+# so the users/cards/payments tables MUST already exist or the pod fails to
+# start. Azure PostgreSQL does NOT auto-run schema.sql, so this Job does it.
+#
+# PREREQUISITE - create the schema ConfigMap from the repo's schema.sql:
+#   kubectl create configmap db-schema \
+#     --namespace credpay \
+#     --from-file=schema.sql=../../schema.sql
+#
+# Run this after the ConfigMap/Secret exist and BEFORE deploying the
+# backends - and safe to re-run on every later deploy too: schema.sql uses
+# CREATE TABLE IF NOT EXISTS and only seeds sample rows into an empty
+# table, so it never touches real data created through the live app.
+# =====================================================================
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: db-schema-init
+  namespace: credpay
+  labels:
+    app.kubernetes.io/part-of: credpay
+spec:
+  backoffLimit: 3
+  ttlSecondsAfterFinished: 600
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: db-schema-init
+        app.kubernetes.io/part-of: credpay
+    spec:
+      restartPolicy: Never
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 70 # postgres user in the alpine image
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: psql
+          image: postgres:16-alpine
+          imagePullPolicy: IfNotPresent
+          command:
+            - /bin/sh
+            - -c
+            - |
+              set -e
+              echo "Applying schema to $DB_HOST/$DB_NAME ..."
+              psql "host=$DB_HOST port=$DB_PORT dbname=$DB_NAME user=$DB_USERNAME sslmode=require" \
+                   -v ON_ERROR_STOP=1 -f /schema/schema.sql
+              echo "Schema applied."
+          env:
+            - name: PGPASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: credpay-db
+                  key: DB_PASSWORD
+          envFrom:
+            - configMapRef:
+                name: credpay-config
+          volumeMounts:
+            - name: schema
+              mountPath: /schema
+              readOnly: true
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+      volumes:
+        - name: schema
+          configMap:
+            name: db-schema

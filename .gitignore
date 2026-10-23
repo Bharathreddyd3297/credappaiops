@@ -1,0 +1,40 @@
+# =====================================================================
+# Terraform
+# =====================================================================
+# Local provider plugins / modules cache
+.terraform/
+.terraform.lock.hcl
+
+# State files (may contain secrets in plaintext, e.g. DB passwords)
+*.tfstate
+*.tfstate.*
+
+# Crash logs
+crash.log
+crash.*.log
+
+# Variable files with real values (subscription id, Key Vault name) -
+# commit only *.tfvars.example
+*.tfvars
+!*.tfvars.example
+
+# Saved plans
+*.tfplan
+
+# CLI config that may hold credentials
+.terraformrc
+terraform.rc
+
+# =====================================================================
+# Local secrets (Google / Entra client secrets) - see infra/.env.example
+# =====================================================================
+infra/.env
+
+# =====================================================================
+# Kubernetes Secret manifests - only *.example.yaml is committed; real
+# Secrets are created from Key Vault by the pipeline
+# =====================================================================
+k8s/**/secret.yaml
+
+# Archives (an old terraform.zip once leaked terraform.tfvars)
+*.zip
